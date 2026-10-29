@@ -103,3 +103,35 @@ class CompareTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class AuditRegressionTests(unittest.TestCase):
+    def test_unicode_line_separator_stays_in_value(self):
+        parsed = parse_env("TOKEN=one\u2028ADMIN=enabled\nOTHER=ok")
+        self.assertEqual(parsed, {"TOKEN": "one\u2028ADMIN=enabled", "OTHER": "ok"})
+
+    def test_unicode_next_line_stays_in_value(self):
+        self.assertEqual(parse_env("TOKEN=one\u0085ADMIN=enabled"), {"TOKEN": "one\u0085ADMIN=enabled"})
+
+    def test_raw_carriage_return_is_not_a_record_separator(self):
+        with self.assertRaisesRegex(EnvError, "control character"):
+            parse_env("TOKEN=one\rADMIN=enabled")
+
+    def test_raw_nul_rejected_without_leaking_value(self):
+        with self.assertRaises(EnvError) as context:
+            parse_env("TOKEN=secret\x00value")
+        self.assertNotIn("secret", str(context.exception))
+
+    def test_crlf_remains_supported(self):
+        self.assertEqual(parse_env("A=1\r\nB=2\r\n"), {"A": "1", "B": "2"})
+
+    def test_keys_only_does_not_claim_values_unchanged(self):
+        result = compare({"A": "secret-one"}, {"A": "secret-two"}, keys_only=True)
+        counts = result.as_dict()["counts"]
+        self.assertEqual(counts["common"], 1)
+        self.assertIsNone(counts["unchanged"])
+
+    def test_value_comparison_counts_common_and_unchanged(self):
+        result = compare({"A": "1", "B": "2"}, {"A": "1", "B": "3"})
+        counts = result.as_dict()["counts"]
+        self.assertEqual(counts["common"], 2)
+        self.assertEqual(counts["unchanged"], 1)
