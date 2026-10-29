@@ -53,8 +53,9 @@ def parse_env(text: str) -> dict[str, str]:
     result: dict[str, str] = {}
     # Only LF and CRLF delimit records; str.splitlines() also splits on Unicode
     # separators that may legitimately occur inside a value.
-    for line_number, original in enumerate(text.split("\n"), start=1):
-        if original.endswith("\r"):
+    lines = text.split("\n")
+    for line_number, original in enumerate(lines, start=1):
+        if line_number < len(lines) and original.endswith("\r"):
             original = original[:-1]
         if "\r" in original or "\x00" in original:
             raise EnvError(f"line {line_number}: unsupported control character")
