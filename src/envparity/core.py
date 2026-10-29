@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from pathlib import Path
 import re
+import stat
 
 MAX_FILE_BYTES = 5 * 1024 * 1024
 KEY_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
@@ -15,16 +17,16 @@ class EnvError(Exception):
 
 
 def _parse_value(raw: str, line_number: int) -> str:
-    raw = raw.lstrip()
+    raw = raw.lstrip(" \t")
     if not raw:
         return ""
     if raw[0] not in ("'", '"'):
-        # A hash begins a comment only when preceded by whitespace.
+        # A hash begins a comment only when preceded by a space or tab.
         for index, char in enumerate(raw):
-            if char == "#" and index > 0 and raw[index - 1].isspace():
+            if char == "#" and index > 0 and raw[index - 1] in " \t":
                 raw = raw[:index]
                 break
-        return raw.rstrip()
+        return raw.rstrip(" \t")
 
     quote = raw[0]
     chars: list[str] = []
@@ -33,7 +35,7 @@ def _parse_value(raw: str, line_number: int) -> str:
     while pos < len(raw):
         char = raw[pos]
         if char == quote:
-            tail = raw[pos + 1 :].strip()
+            tail = raw[pos + 1 :].strip(" \t")
             if tail and not tail.startswith("#"):
                 raise EnvError(f"line {line_number}: unexpected text after quoted value")
             return "".join(chars)
@@ -59,13 +61,13 @@ def parse_env(text: str) -> dict[str, str]:
             original = original[:-1]
         if "\r" in original or "\x00" in original:
             raise EnvError(f"line {line_number}: unsupported control character")
-        line = original.strip()
+        line = original.strip(" \t")
         if not line or line.startswith("#"):
             continue
-        if re.match(r"export\s+", line):
-            line = re.sub(r"^export\s+", "", line, count=1)
+        if re.match(r"export[ \t]+", line):
+            line = re.sub(r"^export[ \t]+", "", line, count=1)
         key, separator, raw_value = line.partition("=")
-        key = key.strip()
+        key = key.strip(" \t")
         if not separator or not KEY_PATTERN.fullmatch(key):
             raise EnvError(f"line {line_number}: invalid assignment or key")
         if key in result:
@@ -75,9 +77,13 @@ def parse_env(text: str) -> dict[str, str]:
 
 
 def read_env(path: Path) -> dict[str, str]:
-    """Read at most 5 MiB, rejecting invalid UTF-8 without exposing input."""
+    """Read at most 5 MiB from a regular file without exposing input."""
+    flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_BINARY", 0)
     try:
-        with path.open("rb") as stream:
+        fd = os.open(path, flags)
+        with os.fdopen(fd, "rb") as stream:
+            if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+                raise EnvError("input is not a regular file")
             data = stream.read(MAX_FILE_BYTES + 1)
     except OSError:
         raise EnvError("cannot read input file") from None
@@ -88,7 +94,6 @@ def read_env(path: Path) -> dict[str, str]:
     except UnicodeDecodeError:
         raise EnvError("input is not valid UTF-8") from None
     return parse_env(text)
-
 
 @dataclass(frozen=True)
 class Comparison:
