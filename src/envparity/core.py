@@ -51,7 +51,13 @@ def _parse_value(raw: str, line_number: int) -> str:
 def parse_env(text: str) -> dict[str, str]:
     """Return keys and values; never include values in parsing errors."""
     result: dict[str, str] = {}
-    for line_number, original in enumerate(text.splitlines(), start=1):
+    # Only LF and CRLF delimit records; str.splitlines() also splits on Unicode
+    # separators that may legitimately occur inside a value.
+    for line_number, original in enumerate(text.split("\n"), start=1):
+        if original.endswith("\r"):
+            original = original[:-1]
+        if "\r" in original or "\x00" in original:
+            raise EnvError(f"line {line_number}: unsupported control character")
         line = original.strip()
         if not line or line.startswith("#"):
             continue
@@ -91,6 +97,7 @@ class Comparison:
     unchanged: int
     left_count: int
     right_count: int
+    keys_only: bool = False
 
     @property
     def equal(self) -> bool:
@@ -105,7 +112,8 @@ class Comparison:
             "counts": {
                 "left": self.left_count,
                 "right": self.right_count,
-                "unchanged": self.unchanged,
+                "common": self.unchanged + len(self.changed),
+                "unchanged": None if self.keys_only else self.unchanged,
             },
         }
 
@@ -129,4 +137,5 @@ def compare(
         unchanged=len(common) - len(changed),
         left_count=len(a),
         right_count=len(b),
+        keys_only=keys_only,
     )
