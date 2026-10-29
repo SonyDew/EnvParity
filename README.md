@@ -51,6 +51,6 @@ Duplicate keys, invalid assignments, unsupported double-quoted escapes, untermin
 python -m unittest discover -s tests -v
 ```
 
-Day 3 afternoon audit (Python 3.13.5, Linux): 39 unit tests passed. A wheel was built and the CLI was exercised with equal, different, keys-only, JSON, and invalid-ignore cases. Windows and other Python versions have not been tested in this audit.
+Day 3 afternoon audit (Python 3.13.5, Linux): 40 unit tests passed. A wheel was built and the CLI was exercised with equal, different, keys-only, JSON, and invalid-ignore cases. Windows and other Python versions have not been tested in this audit.
 
 No GitHub Actions or external services are required.
