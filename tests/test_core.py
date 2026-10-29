@@ -135,3 +135,7 @@ class AuditRegressionTests(unittest.TestCase):
         counts = result.as_dict()["counts"]
         self.assertEqual(counts["common"], 2)
         self.assertEqual(counts["unchanged"], 1)
+
+    def test_bare_carriage_return_at_eof_rejected(self):
+        with self.assertRaisesRegex(EnvError, "control character"):
+            parse_env("A=1\r")
