@@ -72,3 +72,34 @@ class CliTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class AuditCliRegressionTests(unittest.TestCase):
+    setUp = CliTests.setUp
+    run_cli = CliTests.run_cli
+
+    def test_invalid_ignore_name_does_not_echo_value(self):
+        status, out, err = self.run_cli("--ignore", "secret-bad-key")
+        self.assertEqual(status, 2)
+        self.assertEqual(out, "")
+        self.assertIn("invalid --ignore key", err)
+        self.assertNotIn("secret-bad-key", err)
+
+    def test_keys_only_counts_do_not_claim_value_comparison(self):
+        self.left.write_text("TOKEN=one", encoding="utf-8")
+        self.right.write_text("TOKEN=two", encoding="utf-8")
+        status, out, err = self.run_cli("--keys-only", "--json")
+        self.assertEqual(status, 0)
+        counts = json.loads(out)["counts"]
+        self.assertEqual(counts["common"], 1)
+        self.assertIsNone(counts["unchanged"])
+        self.assertEqual(err, "")
+
+    def test_unicode_separator_does_not_add_key(self):
+        self.left.write_text("TOKEN=secret\u2028EXTRA=1", encoding="utf-8")
+        self.right.write_text("TOKEN=secret", encoding="utf-8")
+        status, out, err = self.run_cli("--json")
+        self.assertEqual(status, 1)
+        data = json.loads(out)
+        self.assertEqual(data["changed"], ["TOKEN"])
+        self.assertEqual(data["only_left"], [])
+        self.assertEqual(err, "")
