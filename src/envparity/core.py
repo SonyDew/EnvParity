@@ -95,6 +95,7 @@ def read_env(path: Path) -> dict[str, str]:
         raise EnvError("input is not valid UTF-8") from None
     return parse_env(text)
 
+
 @dataclass(frozen=True)
 class Comparison:
     only_left: list[str]
