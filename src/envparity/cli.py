@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 import sys
 
-from .core import EnvError, compare, read_env
+from .core import KEY_PATTERN, EnvError, compare, read_env
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -23,6 +23,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
+        if any(not KEY_PATTERN.fullmatch(key) for key in args.ignore):
+            raise EnvError("invalid --ignore key")
         left = read_env(args.left)
         right = read_env(args.right)
         result = compare(left, right, ignored=set(args.ignore), keys_only=args.keys_only)
@@ -41,7 +43,8 @@ def main(argv: list[str] | None = None) -> int:
         ):
             if keys:
                 print(f"{label}: {', '.join(keys)}")
-        print(f"Keys: {result.left_count} / {result.right_count}; unchanged: {result.unchanged}")
+        count_label = "common keys" if args.keys_only else "unchanged"
+        print(f"Keys: {result.left_count} / {result.right_count}; {count_label}: {result.unchanged}")
     return 0 if result.equal else 1
 
 
